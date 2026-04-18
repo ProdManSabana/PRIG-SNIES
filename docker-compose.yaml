@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      WAREHOUSE_PATH: /app/data/warehouse/snies.duckdb
+      LANDING_DIR: /app/data/landing
+      RAW_DIR: /app/data/raw
+      PROCESSED_DIR: /app/data/processed
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.pipeline.scheduler"]
+    env_file:
+      - .env
+    environment:
+      WAREHOUSE_PATH: /app/data/warehouse/snies.duckdb
+      LANDING_DIR: /app/data/landing
+      RAW_DIR: /app/data/raw
+      PROCESSED_DIR: /app/data/processed
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+    environment:
+      API_BASE_URL: http://api:8000
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    depends_on:
+      - api
+    restart: unless-stopped
+
