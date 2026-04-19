@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import duckdb; print\\(duckdb.__version__\\)\")",
-      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m pip install duckdb --quiet)"
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m pip install duckdb --quiet)",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c ' *)",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m pip install pandas openpyxl --quiet)"
     ]
   }
 }
