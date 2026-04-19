@@ -1,3 +1,4 @@
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
@@ -14,7 +15,7 @@ class HecaaSource:
 
     def fetch_institutions(self) -> Path:
         html = self.client.get_text(self.settings.hecaa_ies_url)
-        tables = pd.read_html(html)
+        tables = pd.read_html(BytesIO(html.encode("utf-8")), flavor="lxml")
         candidate = max(tables, key=lambda frame: len(frame.columns))
         candidate.columns = [to_snake_case(column) for column in candidate.columns]
         candidate = clean_dataframe(candidate)
@@ -22,4 +23,3 @@ class HecaaSource:
         target.parent.mkdir(parents=True, exist_ok=True)
         candidate.to_csv(target, index=False)
         return target
-

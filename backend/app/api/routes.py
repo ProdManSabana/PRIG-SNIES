@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.settings import Settings, get_settings
 from app.db.warehouse import Warehouse
 from app.models.domain import STUDENT_PROFILES
-from app.models.schemas import FilterOptions, HealthResponse, SummaryResponse, TrendResponse
+from app.models.schemas import FilterOptions, HealthResponse, SummaryResponse, SyncStatusResponse, TrendResponse
 
 
 router = APIRouter()
@@ -38,6 +38,15 @@ def filters(warehouse: Annotated[Warehouse, Depends(get_warehouse)]) -> FilterOp
     for dimension_name, group in dims.groupby("dimension_name"):
         dimension_options[str(dimension_name)] = group["dimension_value"].dropna().astype(str).unique().tolist()
     return FilterOptions(years=years, profiles=profiles, dimensions=dimension_options)
+
+
+@router.get("/api/v1/sync-status", response_model=SyncStatusResponse)
+def sync_status(warehouse: Annotated[Warehouse, Depends(get_warehouse)]) -> SyncStatusResponse:
+    frame = warehouse.query_df("select * from sync_status limit 1")
+    if frame.empty:
+        return SyncStatusResponse(status="not_started")
+    record = frame.where(frame.notna(), None).to_dict(orient="records")[0]
+    return SyncStatusResponse(**record)
 
 
 def build_filter_clause(years: list[int], profiles: list[str], dimension_filters: dict[str, list[str]]) -> tuple[str, list]:
@@ -166,7 +175,7 @@ def trend(
             {
                 "year": int(record["year"]),
                 "profile": "students_to_teachers_ratio",
-                "group_value": "Bogotá, D.C.",
+                "group_value": "Bogota, D.C.",
                 "total_value": (students / teachers) if teachers else None,
             }
         )

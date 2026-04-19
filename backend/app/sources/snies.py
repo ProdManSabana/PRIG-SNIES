@@ -38,6 +38,8 @@ class SniesSource:
     def discover_assets(self) -> list[SourceAsset]:
         html = self.client.get_text(self.settings.snies_base_url)
         soup = BeautifulSoup(html, "html.parser")
+        base_href = soup.find("base")
+        resolution_base = base_href.get("href") if base_href and base_href.get("href") else self.settings.snies_base_url
         anchors = {anchor.get_text(" ", strip=True).casefold(): anchor.get("href") for anchor in soup.find_all("a")}
 
         assets: list[SourceAsset] = []
@@ -45,7 +47,7 @@ class SniesSource:
             for profile, template in SNIES_TITLES.items():
                 title = template.format(year=year)
                 raw_href = anchors.get(title.casefold())
-                url = urljoin(self.settings.snies_base_url, raw_href) if raw_href else None
+                url = urljoin(resolution_base, raw_href) if raw_href else None
                 assets.append(
                     SourceAsset(
                         source="snies",
@@ -66,6 +68,9 @@ class SniesSource:
             suffix = Path(urlparse(asset.url).path).suffix or ".bin"
             filename = f"{asset.year}_{asset.profile}{suffix}"
             target = self.settings.landing_dir / "snies" / str(asset.year) / filename
-            asset.local_path = self.client.download(asset.url, target)
+            try:
+                asset.local_path = self.client.download(asset.url, target)
+            except Exception:
+                asset.local_path = None
             downloaded.append(asset)
         return downloaded

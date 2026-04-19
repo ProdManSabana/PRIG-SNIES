@@ -8,10 +8,12 @@ def main() -> None:
     settings = get_settings()
     interval_seconds = max(settings.sync_interval_hours, 1) * 3600
     while True:
-        run_sync()
+        try:
+            run_sync()
+        except Exception:
+            pass
         sleep(interval_seconds)
 
 
 if __name__ == "__main__":
     main()
-

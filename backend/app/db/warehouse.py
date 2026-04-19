@@ -92,6 +92,22 @@ class Warehouse:
                 );
                 """
             )
+            connection.execute(
+                """
+                create table if not exists sync_status (
+                    status varchar,
+                    started_at timestamp,
+                    completed_at timestamp,
+                    message varchar,
+                    source_assets integer,
+                    downloaded_assets integer,
+                    institution_rows integer,
+                    observation_rows integer,
+                    dimension_rows integer,
+                    metadata_rows integer
+                );
+                """
+            )
 
     def replace_table(self, name: str, frame: pd.DataFrame) -> None:
         with self.connect() as connection:
@@ -103,3 +119,7 @@ class Warehouse:
         with self.connect() as connection:
             result = connection.execute(sql, params or []).fetchdf()
         return result
+
+    def execute(self, sql: str, params: list | None = None) -> None:
+        with self.connect() as connection:
+            connection.execute(sql, params or [])

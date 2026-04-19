@@ -1,8 +1,10 @@
+from typing import Annotated
+
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -15,7 +17,7 @@ class Settings(BaseSettings):
     snies_base_url: str = "https://snies.mineducacion.gov.co/portal/ESTADISTICAS/Bases-consolidadas/"
     hecaa_ies_url: str = "https://hecaa.mineducacion.gov.co/consultaspublicas/ies"
     target_department: str = "Bogotá, D.C."
-    target_years: list[int] = Field(default_factory=lambda: [2022, 2023, 2024])
+    target_years: Annotated[list[int], NoDecode] = Field(default_factory=lambda: [2022, 2023, 2024])
     sync_interval_hours: int = 24
     warehouse_path: Path = Path("/app/data/warehouse/snies.duckdb")
     landing_dir: Path = Path("/app/data/landing")

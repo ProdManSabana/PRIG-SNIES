@@ -17,9 +17,10 @@ def fetch_json(path: str, params: dict | None = None) -> dict:
 
 
 st.set_page_config(page_title="PRIG SNIES Dashboard", layout="wide")
-st.title("PRIG SNIES | Bogotá IES analytics")
-st.caption("Student flows, docentes totals, and student-to-teacher ratios for Bogotá, D.C. (2022-2024).")
+st.title("PRIG SNIES | Bogota IES analytics")
+st.caption("Student flows, docentes totals, and student-to-teacher ratios for Bogota, D.C. (2022-2024).")
 
+sync_status = fetch_json("/api/v1/sync-status")
 filter_payload = fetch_json("/api/v1/filters")
 dimension_options = filter_payload.get("dimensions", {})
 
@@ -51,7 +52,16 @@ summary_df = pd.DataFrame(fetch_json("/api/v1/summary", params=params).get("rows
 trend_df = pd.DataFrame(fetch_json("/api/v1/trend", params={**params, "group_by": group_by}).get("rows", []))
 
 if summary_df.empty:
-    st.warning("No data has been loaded yet. Run the sync pipeline first.")
+    if sync_status.get("status") == "running":
+        st.info(
+            "Sync is currently running. "
+            f"Downloaded assets: {sync_status.get('downloaded_assets', 0)} / {sync_status.get('source_assets', 0)}."
+        )
+    elif sync_status.get("status") == "failed":
+        st.error(f"Last sync failed: {sync_status.get('message', 'Unknown error')}")
+    else:
+        st.warning("No data has been loaded yet.")
+    st.json(sync_status)
     st.stop()
 
 student_profiles = {
