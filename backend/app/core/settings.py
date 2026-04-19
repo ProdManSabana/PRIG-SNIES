@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     snies_base_url: str = "https://snies.mineducacion.gov.co/portal/ESTADISTICAS/Bases-consolidadas/"
     hecaa_ies_url: str = "https://hecaa.mineducacion.gov.co/consultaspublicas/ies"
     target_department: str = "Bogotá, D.C."
+    target_department_code: str = "11"
     target_years: Annotated[list[int], NoDecode] = Field(default_factory=lambda: [2022, 2023, 2024])
     sync_interval_hours: int = 24
     warehouse_path: Path = Path("/app/data/warehouse/snies.duckdb")

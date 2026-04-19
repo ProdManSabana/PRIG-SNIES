@@ -105,6 +105,13 @@ DEPARTMENT_CANDIDATES = (
     "depto",
 )
 
+DEPARTMENT_CODE_CANDIDATES = (
+    "codigo_del_departamento_ies",
+    "codigo_del_departamento_programa",
+    "codigo_departamento",
+    "cod_departamento",
+)
+
 MUNICIPALITY_CANDIDATES = (
     "municipio",
     "municipio_domicilio",
@@ -235,6 +242,31 @@ def normalize_dimension_value(value: object) -> str | None:
         pass
     text = str(value).strip()
     return text if text else None
+
+
+def normalize_code(value: object) -> str | None:
+    normalized = normalize_dimension_value(value)
+    if normalized is None:
+        return None
+
+    text = normalized.strip()
+    if not text:
+        return None
+
+    try:
+        numeric = float(text)
+    except ValueError:
+        digits = re.sub(r"[^0-9]", "", text)
+        return digits or None
+
+    if pd.isna(numeric):
+        return None
+
+    if numeric.is_integer():
+        return str(int(numeric))
+
+    digits = re.sub(r"[^0-9]", "", text)
+    return digits or None
 
 
 def row_dimensions(row: dict, excluded_columns: set[str]) -> dict[str, str]:

@@ -8,6 +8,7 @@ from app.db.warehouse import Warehouse
 from app.services.http import HttpClient
 from app.services.normalization import (
     DEPARTMENT_CANDIDATES,
+    DEPARTMENT_CODE_CANDIDATES,
     DIMENSION_COLUMN_EXCLUSIONS,
     IES_CODE_CANDIDATES,
     IES_NAME_CANDIDATES,
@@ -17,6 +18,7 @@ from app.services.normalization import (
     detect_measure_column,
     dimensions_to_json,
     load_tabular_file,
+    normalize_code,
     normalize_label,
     normalize_dimension_value,
     row_dimensions,
@@ -109,9 +111,15 @@ def normalize_institutions(path: Path) -> pd.DataFrame:
     return frame[expected_columns + ["record_source"]].drop_duplicates()
 
 
-def build_observation_frames(snies_assets, institution_dim: pd.DataFrame, target_department: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_observation_frames(
+    snies_assets,
+    institution_dim: pd.DataFrame,
+    target_department: str,
+    target_department_code: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     observations: list[dict] = []
     dimensions: list[dict] = []
+    normalized_target_department_code = normalize_code(target_department_code)
 
     institution_lookup = institution_dim.copy()
     if "institution_code" in institution_lookup.columns:
@@ -127,6 +135,7 @@ def build_observation_frames(snies_assets, institution_dim: pd.DataFrame, target
             columns = list(frame.columns)
             institution_code_column = select_first_existing(columns, IES_CODE_CANDIDATES)
             institution_name_column = select_first_existing(columns, IES_NAME_CANDIDATES)
+            department_code_column = select_first_existing(columns, DEPARTMENT_CODE_CANDIDATES)
             department_column = select_first_existing(columns, DEPARTMENT_CANDIDATES)
             municipality_column = select_first_existing(columns, MUNICIPALITY_CANDIDATES)
             if not measure_column:
@@ -136,7 +145,10 @@ def build_observation_frames(snies_assets, institution_dim: pd.DataFrame, target
             working_frame[measure_column] = pd.to_numeric(working_frame[measure_column], errors="coerce")
             working_frame = working_frame[working_frame[measure_column].notna()]
 
-            if department_column and department_column in working_frame.columns:
+            if normalized_target_department_code and department_code_column and department_code_column in working_frame.columns:
+                department_code_series = working_frame[department_code_column].map(normalize_code).fillna("")
+                working_frame = working_frame[department_code_series == normalized_target_department_code]
+            elif department_column and department_column in working_frame.columns:
                 department_series = working_frame[department_column].map(normalize_dimension_value).fillna("")
                 working_frame = working_frame[
                     department_series.map(
@@ -153,6 +165,7 @@ def build_observation_frames(snies_assets, institution_dim: pd.DataFrame, target
                 row_dict = row.to_dict()
                 institution_code = row_dict.get(institution_code_column) if institution_code_column else None
                 institution_name = row_dict.get(institution_name_column) if institution_name_column else None
+                department_code = row_dict.get(department_code_column) if department_code_column else None
                 department = row_dict.get(department_column) if department_column else None
                 municipality = row_dict.get(municipality_column) if municipality_column else None
 
@@ -186,8 +199,12 @@ def build_observation_frames(snies_assets, institution_dim: pd.DataFrame, target
                     or combined_dims.get("domicile_department")
                     or ""
                 ).strip()
+                effective_department_code = normalize_code(department_code)
 
-                if effective_department and normalize_label(effective_department) != normalize_label(target_department):
+                if effective_department_code and normalized_target_department_code:
+                    if effective_department_code != normalized_target_department_code:
+                        continue
+                elif effective_department and normalize_label(effective_department) != normalize_label(target_department):
                     continue
 
                 if institution_code is None and institution_name is None:
@@ -308,7 +325,12 @@ def run_sync() -> None:
         institution_dim = normalize_institutions(institutions_path)
         warehouse.replace_table("institution_dim", institution_dim)
 
-        observations, dimensions = build_observation_frames(downloaded_assets, institution_dim, settings.target_department)
+        observations, dimensions = build_observation_frames(
+            downloaded_assets,
+            institution_dim,
+            settings.target_department,
+            settings.target_department_code,
+        )
         if observations.empty:
             observations = pd.DataFrame(
                 columns=[
