@@ -89,6 +89,7 @@ python --version
    - **Dashboard Streamlit**: http://localhost:8501
    - **API FastAPI**: http://localhost:8000
    - **API Docs**: http://localhost:8000/docs
+   - **Tableau WDC**: http://localhost:8000/static/tableau_wdc.html
 
    ** _Nota importante de ejecución_ : Si la plataforma en el Dashboard (tablero de visualización) se queda patinando por largo tiempo en la primera ejecución "Running fetch_json(...)", detenerla con 'Stop' arriba a la derecha, limpiar el caché del navegador y reiniciar con **Ctrl+Shift+R** 
 
@@ -130,6 +131,7 @@ python --version
    - Dashboard: http://localhost:8501
    - API: http://localhost:8000
    - API Docs: http://localhost:8000/docs
+   - Tableau WDC: http://localhost:8000/static/tableau_wdc.html
 
 7. **Detener servicios**
    ```bash
@@ -163,6 +165,7 @@ python --version
    - Dashboard: http://localhost:8501
    - API: http://localhost:8000
    - API Docs: http://localhost:8000/docs
+   - Tableau WDC: http://localhost:8000/static/tableau_wdc.html
 
 6. **Detener la plataforma**
    ```bash
@@ -302,6 +305,7 @@ python --version
    - **Streamlit Dashboard**: http://localhost:8501
    - **FastAPI**: http://localhost:8000
    - **API Documentation**: http://localhost:8000/docs
+   - **Tableau WDC**: http://localhost:8000/static/tableau_wdc.html
 
 5. **Stop the platform**
    ```bash
@@ -341,6 +345,7 @@ python --version
    - Dashboard: http://localhost:8501
    - API: http://localhost:8000
    - API Docs: http://localhost:8000/docs
+   - Tableau WDC: http://localhost:8000/static/tableau_wdc.html
 
 7. **Stop services**
    ```bash
@@ -374,6 +379,7 @@ python --version
    - Dashboard: http://localhost:8501
    - API: http://localhost:8000
    - API Docs: http://localhost:8000/docs
+   - Tableau WDC: http://localhost:8000/static/tableau_wdc.html
 
 6. **Stop the platform**
    ```bash
@@ -423,6 +429,7 @@ streamlit run app.py
 - **api**: FastAPI service providing filtered aggregates and analytics endpoints
   - Port: `8000` (configurable via `API_PORT`)
   - Endpoints: `/api/v1/summary`, `/api/v1/trend`, `/api/v1/filters`, `/api/v1/sync-status`
+  - Static WDC: `/static/tableau_wdc.html`
 
 - **scheduler**: Background job for automated data ingestion and normalization
   - Runs every `SYNC_INTERVAL_HOURS` (24 hours by default)

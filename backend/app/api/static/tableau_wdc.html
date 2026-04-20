@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-store" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PRIG SNIES Tableau Connector</title>
+  <script
+    src="https://connectors.tableau.com/libs/tableauwdc-2.3.latest.js"
+    type="text/javascript"
+  ></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef4ea;
+      --panel: #fbf8ef;
+      --ink: #1f3524;
+      --muted: #526458;
+      --accent: #155e63;
+      --accent-strong: #0b4347;
+      --stroke: #c5d5c4;
+      --shadow: 0 18px 40px rgba(21, 49, 33, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(245, 204, 92, 0.18), transparent 28%),
+        linear-gradient(135deg, var(--bg), #dceadb 55%, #cfe1cf);
+      color: var(--ink);
+    }
+
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+
+    .card {
+      background: rgba(251, 248, 239, 0.92);
+      border: 1px solid rgba(197, 213, 196, 0.95);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      margin: 0 0 14px;
+      line-height: 1.55;
+    }
+
+    .lede {
+      color: var(--muted);
+      margin-bottom: 26px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--stroke);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.85);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
+
+    .hint,
+    .status,
+    .footer {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .status {
+      min-height: 1.5em;
+      margin-top: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 22px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #f8f8f2;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+      box-shadow: 0 10px 24px rgba(11, 67, 71, 0.26);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0 20px;
+    }
+
+    .pill {
+      border: 1px solid rgba(21, 94, 99, 0.18);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(21, 94, 99, 0.08);
+      font-size: 0.88rem;
+    }
+
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    @media (max-width: 640px) {
+      main {
+        padding-top: 28px;
+      }
+
+      .card {
+        padding: 22px;
+        border-radius: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>PRIG SNIES</h1>
+      <p class="lede">
+        Tableau Web Data Connector for the FastAPI analytics endpoints. This connection
+        creates two tables: <code>snies_summary</code> and <code>snies_trend</code>.
+      </p>
+
+      <div class="pill-row">
+        <span class="pill">Summary: year x profile</span>
+        <span class="pill">Trend: year x profile x group value</span>
+        <span class="pill">Supports repeated API filters</span>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="apiBase">API base URL</label>
+          <input id="apiBase" type="text" />
+        </div>
+        <div>
+          <label for="groupBy">Trend group_by</label>
+          <input id="groupBy" type="text" value="sector" placeholder="sector" />
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="years">Years</label>
+          <input id="years" type="text" placeholder="2023, 2024" />
+        </div>
+        <div>
+          <label for="profiles">Profiles</label>
+          <input id="profiles" type="text" placeholder="docentes, matriculados" />
+        </div>
+      </div>
+
+      <div>
+        <label for="dimensionFilters">Dimension filters</label>
+        <textarea
+          id="dimensionFilters"
+          placeholder="One per line or comma-separated. Example:
+sector::OFICIAL
+sexo::Femenino"
+        ></textarea>
+        <p class="hint">
+          Format each filter as <code>dimension_name::value</code>. The connector will send each
+          one as a repeated <code>dimension_filter</code> query parameter.
+        </p>
+      </div>
+
+      <button id="submitButton" type="button">Get data</button>
+      <p class="status" id="statusText"></p>
+      <p class="footer">
+        When this page is served by the API, the default base URL is detected automatically from
+        the current browser origin.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      function parseCsvInput(value, coerce) {
+        return value
+          .split(",")
+          .map(function (item) { return item.trim(); })
+          .filter(Boolean)
+          .map(function (item) { return coerce ? coerce(item) : item; })
+          .filter(function (item) {
+            return item !== null && item !== undefined && item !== "";
+          });
+      }
+
+      function parseDimensionFilters(value) {
+        return value
+          .split(/\r?\n|,/)
+          .map(function (item) { return item.trim(); })
+          .filter(Boolean);
+      }
+
+      function buildQuery(cfg, tableId) {
+        var params = new URLSearchParams();
+
+        (cfg.years || []).forEach(function (year) {
+          params.append("years", String(year));
+        });
+        (cfg.profiles || []).forEach(function (profile) {
+          params.append("profiles", profile);
+        });
+        (cfg.dimensionFilters || []).forEach(function (item) {
+          params.append("dimension_filter", item);
+        });
+
+        if (tableId === "snies_trend") {
+          params.append("group_by", cfg.groupBy || "sector");
+        }
+
+        return params.toString();
+      }
+
+      function setStatus(message) {
+        $("#statusText").text(message);
+      }
+
+      var connector = tableau.makeConnector();
+
+      connector.getSchema = function (schemaCallback) {
+        var summaryTable = {
+          id: "snies_summary",
+          alias: "SNIES summary (year x profile)",
+          columns: [
+            { id: "year", dataType: tableau.dataTypeEnum.int },
+            { id: "profile", dataType: tableau.dataTypeEnum.string },
+            { id: "total_value", dataType: tableau.dataTypeEnum.float }
+          ]
+        };
+
+        var trendTable = {
+          id: "snies_trend",
+          alias: "SNIES trend (year x profile x group value)",
+          columns: [
+            { id: "year", dataType: tableau.dataTypeEnum.int },
+            { id: "profile", dataType: tableau.dataTypeEnum.string },
+            { id: "group_value", dataType: tableau.dataTypeEnum.string },
+            { id: "total_value", dataType: tableau.dataTypeEnum.float }
+          ]
+        };
+
+        schemaCallback([summaryTable, trendTable]);
+      };
+
+      connector.getData = function (table, doneCallback) {
+        var cfg = JSON.parse(tableau.connectionData || "{}");
+        var base = (cfg.apiBase || window.location.origin).replace(/\/+$/, "");
+        var path = table.tableInfo.id === "snies_summary" ? "/api/v1/summary" : "/api/v1/trend";
+        var query = buildQuery(cfg, table.tableInfo.id);
+        var url = base + path + (query ? "?" + query : "");
+
+        $.getJSON(url)
+          .done(function (resp) {
+            table.appendRows(resp.rows || []);
+            doneCallback();
+          })
+          .fail(function (jqXHR, textStatus, errorThrown) {
+            var detail = errorThrown || textStatus || "unknown error";
+            tableau.abortWithError("Failed to fetch " + url + ": " + detail);
+          });
+      };
+
+      tableau.registerConnector(connector);
+
+      $(document).ready(function () {
+        var inferredBase = window.location.origin || "http://localhost:8000";
+        $("#apiBase").val(inferredBase);
+
+        $("#submitButton").on("click", function () {
+          var years = parseCsvInput($("#years").val(), function (item) {
+            var parsed = Number(item);
+            return Number.isFinite(parsed) ? parsed : null;
+          });
+          var profiles = parseCsvInput($("#profiles").val());
+          var dimensionFilters = parseDimensionFilters($("#dimensionFilters").val());
+          var groupBy = $("#groupBy").val().trim() || "sector";
+
+          tableau.connectionName = "PRIG SNIES";
+          tableau.connectionData = JSON.stringify({
+            apiBase: ($("#apiBase").val().trim() || inferredBase),
+            years: years,
+            profiles: profiles,
+            dimensionFilters: dimensionFilters,
+            groupBy: groupBy
+          });
+
+          setStatus("Submitting connector configuration to Tableau...");
+          tableau.submit();
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

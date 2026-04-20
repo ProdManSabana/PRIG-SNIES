@@ -1,6 +1,9 @@
+from pathlib import Path
+
 import duckdb
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.settings import get_settings
 from app.db.warehouse import Warehouse
@@ -15,6 +18,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    static_dir = Path(__file__).resolve().parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(router)
 
     @app.on_event("startup")

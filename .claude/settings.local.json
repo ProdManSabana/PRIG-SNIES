@@ -23,7 +23,10 @@
       "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('rows:', d['rows']\\)\")",
       "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T dashboard grep -n \"build_pie_figure\\\\|active_profile_tab\\\\|key=f\\\\\"pie_\\\\|key=f\\\\\"dim_\\\\|years_filter\" //app/app.py)",
       "Bash(curl -sS \"http://localhost:8000/api/v1/trend?group_by=sector\")",
-      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); rows=d['rows']; print\\('rows:', len\\(rows\\)\\); print\\('profiles:', sorted\\({r['profile'] for r in rows}\\)\\); print\\('years:', sorted\\({r['year'] for r in rows}\\)\\); print\\('group_values:', sorted\\({r['group_value'] for r in rows if r['group_value']}\\)\\)\")"
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); rows=d['rows']; print\\('rows:', len\\(rows\\)\\); print\\('profiles:', sorted\\({r['profile'] for r in rows}\\)\\); print\\('years:', sorted\\({r['year'] for r in rows}\\)\\); print\\('group_values:', sorted\\({r['group_value'] for r in rows if r['group_value']}\\)\\)\")",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/summary?years=2024&profiles=docentes\")",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/trend?group_by=sector&years=2024\")",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['rows'][:3], indent=2\\)\\)\")"
     ]
   }
 }
