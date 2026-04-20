@@ -11,8 +11,8 @@ class Warehouse:
         self.settings = settings
 
     @contextmanager
-    def connect(self):
-        connection = duckdb.connect(str(self.settings.warehouse_path))
+    def connect(self, read_only: bool = False):
+        connection = duckdb.connect(str(self.settings.warehouse_path), read_only=read_only)
         try:
             yield connection
         finally:
@@ -116,7 +116,7 @@ class Warehouse:
             connection.unregister("frame_view")
 
     def query_df(self, sql: str, params: list | None = None) -> pd.DataFrame:
-        with self.connect() as connection:
+        with self.connect(read_only=True) as connection:
             result = connection.execute(sql, params or []).fetchdf()
         return result
 

@@ -10,11 +10,21 @@ from app.models.schemas import FilterOptions, HealthResponse, SummaryResponse, S
 
 router = APIRouter()
 
+VISIBLE_FILTER_DIMENSIONS = {
+    "academic_character",
+    "area_de_conocimiento",
+    "desc_cine_campo_amplio",
+    "domicile_department",
+    "domicile_municipality",
+    "modalidad",
+    "nivel_de_formacion",
+    "sector",
+    "sexo",
+}
+
 
 def get_warehouse(settings: Annotated[Settings, Depends(get_settings)]) -> Warehouse:
-    warehouse = Warehouse(settings)
-    warehouse.initialize()
-    return warehouse
+    return Warehouse(settings)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -26,13 +36,17 @@ def health() -> HealthResponse:
 def filters(warehouse: Annotated[Warehouse, Depends(get_warehouse)]) -> FilterOptions:
     years = warehouse.query_df("select distinct year from fact_observations order by year").iloc[:, 0].dropna().astype(int).tolist()
     profiles = warehouse.query_df("select distinct profile from fact_observations order by profile").iloc[:, 0].dropna().astype(str).tolist()
+    visible_dimension_names = sorted(VISIBLE_FILTER_DIMENSIONS)
+    placeholders = ", ".join(["?"] * len(visible_dimension_names))
     dims = warehouse.query_df(
-        """
+        f"""
         select dimension_name, dimension_value
         from observation_dimensions
         where dimension_value is not null
+          and dimension_name in ({placeholders})
         order by dimension_name, dimension_value
-        """
+        """,
+        visible_dimension_names,
     )
     dimension_options: dict[str, list[str]] = {}
     for dimension_name, group in dims.groupby("dimension_name"):

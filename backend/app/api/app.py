@@ -1,6 +1,9 @@
+import duckdb
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.settings import get_settings
+from app.db.warehouse import Warehouse
 from app.api.routes import router
 
 
@@ -13,5 +16,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
-    return app
 
+    @app.on_event("startup")
+    def initialize_warehouse() -> None:
+        settings = get_settings()
+        if settings.warehouse_path.exists():
+            return
+
+        warehouse = Warehouse(settings)
+        try:
+            warehouse.initialize()
+        except duckdb.IOException:
+            if not settings.warehouse_path.exists():
+                raise
+
+    return app
