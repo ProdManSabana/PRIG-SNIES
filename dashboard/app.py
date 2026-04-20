@@ -32,13 +32,24 @@ group_by = DEFAULT_GROUP_BY if DEFAULT_GROUP_BY in dimension_options else None
 
 with st.sidebar:
     st.header("Filters")
-    years = st.multiselect("Years", options=filter_payload.get("years", []), default=filter_payload.get("years", []))
-    profiles = st.multiselect("Profiles", options=filter_payload.get("profiles", []), default=filter_payload.get("profiles", []))
+
+    available_years = filter_payload.get("years", [])
+    available_profiles = filter_payload.get("profiles", [])
+    st.session_state.setdefault("years_filter", list(available_years))
+    st.session_state.setdefault("profiles_filter", list(available_profiles))
+
+    years = st.multiselect("Years", options=available_years, key="years_filter")
+    profiles = st.multiselect("Profiles", options=available_profiles, key="profiles_filter")
+
     selected_dimension_filters: dict[str, list[str]] = {}
     for dimension_name in sorted(dimension_options.keys()):
         if dimension_name in HIDDEN_DIMENSIONS:
             continue
-        selected_values = st.multiselect(dimension_name.replace("_", " ").title(), options=dimension_options[dimension_name])
+        selected_values = st.multiselect(
+            dimension_name.replace("_", " ").title(),
+            options=dimension_options[dimension_name],
+            key=f"dim_{dimension_name}",
+        )
         if selected_values:
             selected_dimension_filters[dimension_name] = selected_values
 

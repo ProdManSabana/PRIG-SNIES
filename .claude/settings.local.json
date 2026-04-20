@@ -4,7 +4,23 @@
       "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import duckdb; print\\(duckdb.__version__\\)\")",
       "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m pip install duckdb --quiet)",
       "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c ' *)",
-      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m pip install pandas openpyxl --quiet)"
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m pip install pandas openpyxl --quiet)",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -m py_compile dashboard/app.py)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(docker info *)",
+      "Bash(curl -sS http://localhost:8000/health)",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/filters\")",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('years:', d['years']\\); print\\('profiles:', d['profiles']\\); print\\('dimension count:', len\\(d.get\\('dimensions', {}\\)\\)\\)\")",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/summary\")",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); rows=d['rows']; print\\('row count:', len\\(rows\\)\\); print\\('by year:', sorted\\({r['year'] for r in rows}\\)\\)\")",
+      "Bash(curl -sI http://localhost:8501/)",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/summary?years=2022\")",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('rows:', len\\(d['rows']\\)\\); print\\('years:', sorted\\({r['year'] for r in d['rows']}\\)\\)\")",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/summary?years=2022&years=2024\")",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T dashboard grep -n \"years_filter\\\\|profiles_filter\\\\|dim_\" //app/app.py)",
+      "Bash(curl -sS \"http://localhost:8000/api/v1/summary?profiles=docentes\")",
+      "Bash(/c/Users/ae.wills22/AppData/Local/Python/bin/python.exe -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('rows:', d['rows']\\)\")"
     ]
   }
 }
