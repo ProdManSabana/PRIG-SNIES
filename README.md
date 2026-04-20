@@ -89,6 +89,8 @@ python --version
    - **API FastAPI**: http://localhost:8000
    - **API Docs**: http://localhost:8000/docs
 
+   ** _Nota importante de ejecución_ : Si la plataforma en el Dashboard (tablero de visualización) se queda patinando por largo tiempo en la primera ejecución "Running fetch_json(...)", detenerla con 'Stop' arriba a la derecha, limpiar el caché del navegador y reiniciar con **Ctrl+Shift+R** 
+
 5. **Detener la plataforma**
    ```bash
    docker compose down
