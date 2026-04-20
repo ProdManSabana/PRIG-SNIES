@@ -7,6 +7,23 @@ import streamlit as st
 
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000")
+HIDDEN_DIMENSIONS = {
+    "department",
+    "desc_cine_campo_detallado",
+    "desc_cine_campo_especifico",
+    "institution_name",
+    "institution_state",
+    "is_accredited",
+    "municipality",
+    "nivel_academico",
+    "nucleo_basico_del_conocimiento_nbc",
+    "program_department",
+    "program_municipality",
+    "programa_academico",
+    "semester",
+    "type_ies",
+}
+DEFAULT_GROUP_BY = "sector"
 
 
 @st.cache_data(ttl=300)
@@ -23,18 +40,20 @@ st.caption("Student flows, docentes totals, and student-to-teacher ratios for Bo
 sync_status = fetch_json("/api/v1/sync-status")
 filter_payload = fetch_json("/api/v1/filters")
 dimension_options = filter_payload.get("dimensions", {})
+visible_dimension_options = {
+    name: values
+    for name, values in dimension_options.items()
+    if name not in HIDDEN_DIMENSIONS
+}
+group_by = DEFAULT_GROUP_BY if DEFAULT_GROUP_BY in dimension_options else None
 
 with st.sidebar:
     st.header("Filters")
     years = st.multiselect("Years", options=filter_payload.get("years", []), default=filter_payload.get("years", []))
     profiles = st.multiselect("Profiles", options=filter_payload.get("profiles", []), default=filter_payload.get("profiles", []))
-    group_by = st.selectbox(
-        "Trend grouping",
-        options=sorted(dimension_options.keys()) if dimension_options else ["institution_name"],
-    )
     selected_dimension_filters: dict[str, list[str]] = {}
-    for dimension_name in sorted(dimension_options.keys()):
-        selected_values = st.multiselect(dimension_name.replace("_", " ").title(), options=dimension_options[dimension_name])
+    for dimension_name in sorted(visible_dimension_options.keys()):
+        selected_values = st.multiselect(dimension_name.replace("_", " ").title(), options=visible_dimension_options[dimension_name])
         if selected_values:
             selected_dimension_filters[dimension_name] = selected_values
 
@@ -49,7 +68,9 @@ params = {
 }
 
 summary_df = pd.DataFrame(fetch_json("/api/v1/summary", params=params).get("rows", []))
-trend_df = pd.DataFrame(fetch_json("/api/v1/trend", params={**params, "group_by": group_by}).get("rows", []))
+trend_df = pd.DataFrame(
+    fetch_json("/api/v1/trend", params={**params, "group_by": group_by}).get("rows", [])
+) if group_by else pd.DataFrame()
 
 if summary_df.empty:
     if sync_status.get("status") == "running":
