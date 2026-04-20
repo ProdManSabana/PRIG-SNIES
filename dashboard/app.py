@@ -8,6 +8,10 @@ import streamlit as st
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000")
 DEFAULT_GROUP_BY = "sector"
+HIDDEN_DIMENSIONS = {
+    "domicile_department",
+    "domicile_municipality",
+}
 
 
 @st.cache_data(ttl=300)
@@ -32,6 +36,8 @@ with st.sidebar:
     profiles = st.multiselect("Profiles", options=filter_payload.get("profiles", []), default=filter_payload.get("profiles", []))
     selected_dimension_filters: dict[str, list[str]] = {}
     for dimension_name in sorted(dimension_options.keys()):
+        if dimension_name in HIDDEN_DIMENSIONS:
+            continue
         selected_values = st.multiselect(dimension_name.replace("_", " ").title(), options=dimension_options[dimension_name])
         if selected_values:
             selected_dimension_filters[dimension_name] = selected_values
