@@ -578,3 +578,368 @@ docker compose up --build
 - The pipeline is configured for `Bogotá, D.C.` and target years `2022, 2023, 2024`.
 - The current normalization is intentionally schema-tolerant because SNIES file layouts can differ by profile and year.
 - If the live portals change their HTML structure or download mechanics, the source adapters in `backend/app/sources/` are the place to update.
+
+# Used tool: mcp__gitkraken__git_log_or_diff
+
+Searched for files matching `backend/**/*.py`
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES)
+
+
+
+Ran terminal command: cd c:/Users/ae.wills22/source/repos/PRIG-SNIES && git log --oneline -30
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/README.md)
+
+Ran terminal command: cd c:/Users/ae.wills22/source/repos/PRIG-SNIES ; git log --oneline -30
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/docs/architecture.md)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/main.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/pipeline/sync.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/db/warehouse.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/api/app.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/core/settings.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/api/routes.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/sources/snies.py)
+
+Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/docker-compose.yaml)
+
+Aquí te presento un análisis comprensivo de las decisiones técnicas y arquitectónicas del proyecto PRIG SNIES basado en el historial de commits y la estructura del código:
+
+---
+
+# ANÁLISIS DE DECISIONES TÉCNICAS Y ARQUITECTÓNICAS - PRIG SNIES
+
+## 1. RESUMEN EJECUTIVO
+
+PRIG SNIES es una plataforma de datos containerizada construida con principios de **arquitectura modular y resiliente**. Las decisiones técnicas responden a la necesidad de integrar múltiples fuentes de datos con esquemas inconsistentes (SNIES, HECAA) manteniendo flexibilidad, durabilidad y facilidad de mantenimiento a largo plazo.
+
+---
+
+## 2. ARQUITECTURA GENERAL
+
+### Modelo de Capas Separadas
+
+El proyecto implementa un **patrón de capas de datos** bien definido:
+
+```
+SNIES/HECAA (Portales Públicos)
+         ↓
+    Landing Layer (Descarga cruda)
+         ↓
+    Raw Layer (Extracción inicial)
+         ↓
+    Processed Layer (Normalización)
+         ↓
+    DuckDB Warehouse (Analytical)
+         ↓
+    FastAPI Service (Agregados filtrados)
+         ↓
+    Streamlit Dashboard (Visualización)
+```
+
+**Justificación**: Esta separación permite que cada capa sea independiente, versionable y auditable. Los datos se preservan en cada etapa, facilitando la gobernanza de datos y permitiendo reproducibilidad de análisis históricos.
+
+### Orquestación con Docker Compose
+
+**Decisión**: Tres servicios containerizados (`api`, `scheduler`, `dashboard`) con volumen compartido.
+
+**Beneficios**:
+- **Reproducibilidad**: Mismo ambiente en desarrollo, testing y producción
+- **Aislamiento**: Cada servicio está aislado pero coordinado
+- **Escalabilidad horizontal**: Fácil replicar servicios sin cambiar código
+- **Facilidad de deploy**: Un único comando (`docker compose up --build`)
+
+---
+
+## 3. DECISIONES TÉCNICAS CLAVE
+
+### 3.1 Modelo de Datos: Observación-Dimensión (Schema-Agnostic)
+
+**Decisión**: En lugar de fijar un esquema wide (muchas columnas), se usa:
+- `fact_observations`: Una fila = una medida
+- `observation_dimensions`: Tabla tall para dimensiones descubiertas dinámicamente
+- `field_metadata`: Preserva metadatos originales
+
+**Justificación**:
+```python
+# En sync.py:115-257
+# Normalización tolerante a esquemas heterogéneos
+for asset in snies_assets:
+    for sheet_name, frame in load_tabular_file(asset.local_path):
+        # Detecta automáticamente columnas de medida
+        measure_column = detect_measure_column(frame)
+        # Extrae dimensiones de forma flexible
+        row_dims = row_dimensions(row_dict, excluded)
+```
+
+**Ventajas**:
+- ✅ **Robustez**: Tolera cambios en estructura de archivos SNIES entre años/perfiles
+- ✅ **Sostenibilidad**: Años 2022, 2023, 2024 con layouts diferentes conviven sin recodificación
+- ✅ **Escalabilidad**: Agregar nuevos años con estructuras variantes es transparente
+
+### 3.2 DuckDB como Almacén Analítico
+
+**Decisión**: Usar DuckDB en lugar de PostgreSQL, MySQL o data warehouse en la nube.
+
+**Justificación técnica**:
+- **Embebido**: Se ejecuta como archivo en disco (simplifica despliegue)
+- **OLAP nativo**: Optimizado para agregaciones y análisis (no OLTP)
+- **Sin servidor**: No requiere servicio separado
+- **Compresión nativa**: Reduce overhead de storage
+
+**Impacto en atributos de calidad**:
+
+| Atributo | Beneficio |
+|----------|-----------|
+| **Robustez** | Archivo único simplifica backups y recuperación |
+| **Mantenibilidad** | Cero configuración de servidor externo |
+| **Escalabilidad** | Soporta cientos de millones de filas eficientemente |
+| **Accesibilidad** | API estándar SQL, bajo conocimiento requerido |
+
+### 3.3 Reintentos y Manejo de Locks
+
+**Decisión**: Implementar reintentos exponenciales para locks de DuckDB.
+
+```python
+# warehouse.py:14-35
+DUCKDB_LOCK_RETRY_ATTEMPTS = 10
+DUCKDB_LOCK_RETRY_DELAY_SECONDS = 1
+
+def should_retry_duckdb_lock(exc: duckdb.IOException) -> bool:
+    message = str(exc)
+    return "Could not set lock on file" in message and "Conflicting lock is held" in message
+```
+
+**Beneficios**:
+- ✅ **Robustez**: Tolera condiciones transitorias (scheduler y API accediendo simultáneamente)
+- ✅ **Resilencia**: Evita fallos falsos por contención normal
+
+### 3.4 Configuración Centralizada con Pydantic Settings
+
+**Decisión**: Settings singleton con validación automática.
+
+```python
+# core/settings.py
+class Settings(BaseSettings):
+    snies_base_url: str = "https://snies.mineducacion.gov.co/..."
+    target_department: str = "Bogotá, D.C."
+    target_years: list[int] = [2022, 2023, 2024]
+    warehouse_path: Path = Path("/app/data/warehouse/snies.duckdb")
+```
+
+**Ventajas**:
+- ✅ **Mantenibilidad**: Un único punto de verdad para configuración
+- ✅ **Escalabilidad**: Permite parametrizar comportamiento sin recodificar
+- ✅ **Sostenibilidad**: Cambios en URLs de portal requieren solo actualizar `.env`
+
+### 3.5 Normalization Service: Funciones Puras
+
+El módulo `services/normalization.py` contiene funciones sin estado:
+
+```python
+def normalize_code(value: str) -> str:
+    """Normaliza códigos DANE sin efectos laterales"""
+    
+def normalize_label(value: str) -> str:
+    """Normaliza labels para comparación case-insensitive"""
+    
+def select_first_existing(columns: list, candidates: list) -> str | None:
+    """Detecta columnas por patrones de nombres"""
+```
+
+**Beneficios**:
+- ✅ **Testabilidad**: Funciones puras son triviales de testear
+- ✅ **Reutilización**: Mismo código en sync y API
+- ✅ **Mantenibilidad**: Lógica de normalización centralizada
+
+### 3.6 FastAPI con Dependency Injection
+
+```python
+# api/routes.py
+def get_warehouse(settings: Annotated[Settings, Depends(get_settings)]) -> Warehouse:
+    return Warehouse(settings)
+
+@router.get("/api/v1/filters", response_model=FilterOptions)
+def filters(warehouse: Annotated[Warehouse, Depends(get_warehouse)]) -> FilterOptions:
+    # Warehouse inyectado automáticamente
+```
+
+**Ventajas**:
+- ✅ **Testabilidad**: Mock fácil de Warehouse para tests
+- ✅ **Escalabilidad**: Soporte para cambiar implementación sin afectar endpoints
+- ✅ **Mantenibilidad**: Separación clara de concerns (HTTP vs lógica de datos)
+
+### 3.7 CORS Abierto para Accesibilidad
+
+```python
+# api/app.py
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+**Justificación**:
+- ✅ **Accesibilidad**: Dashboard y herramientas externas (Tableau WDC) pueden conectar sin barreras
+- ⚠️ **Trade-off**: Seguridad reducida en producción (debería restringirse a origen conocido)
+
+---
+
+## 4. CÓMO LAS DECISIONES SOPORTAN LOS ATRIBUTOS DE CALIDAD
+
+### 4.1 ROBUSTEZ
+
+| Decisión | Mecanismo | Ejemplo |
+|----------|-----------|---------|
+| Schema-agnostic | Tolera varianza estructural | SNIES 2022 vs 2024 layouts diferentes |
+| Reintentos de locks | Maneja contención transitoria | API y scheduler simultáneos sin fallos |
+| Validación con Pydantic | Rechaza configuración inválida en startup | Tipos de dato validados automáticamente |
+| Preservation de metadatos | Auditoria de transformaciones | `field_metadata` table conserva originales |
+
+**Commit evidencia**: `68b1e8c` - *"Enhance warehouse connection handling with retry logic"*
+
+### 4.2 ESCALABILIDAD
+
+| Decisión | Mecanismo | Límite actual |
+|----------|-----------|---------------|
+| DuckDB OLAP | Agregaciones eficientes en millones de filas | 383,191 facts, 8.2M dimension rows |
+| Capas separadas | Landing/Raw/Processed pueden procesarse independientemente | Agregar años sin reprocess histórico |
+| Scheduler asincrónico | Ingesta no bloquea API | Sync cada 24h no afecta queries |
+| Docker compose scale | Replicar servicios horizontalmente | `docker-compose up --scale api=3` |
+
+**Commit evidencia**: `de60adb` - *"Optimizations and refactorings... implementing caching mechanisms"*
+
+### 4.3 SOSTENIBILIDAD
+
+| Decisión | Mecanismo | Implicación |
+|----------|-----------|-------------|
+| Settings en `.env` | Cambios de URLs/años sin tocar código | Portal SNIES cambia → solo editar `.env` |
+| Patrón adapter para fuentes | `SniesSource`, `HecaaSource` centralizados | Nuevo portal requiere solo nuevo adapter |
+| Normalización tolerante | Cambios futuros en SNIES no rompen pipeline | Resiliencia a evolución de data sources |
+| Metadatos preservados | Etiquetas futuras sin redownload | Gobernanza de datos escalable |
+
+**Commit evidencia**: `61f571b` - *"Rebuilt the filtering: added a HIDDEN_DIMENSIONS set"* - Prueba de evolución del sistema
+
+### 4.4 MANTENIBILIDAD
+
+| Decisión | Beneficio | Ejemplo |
+|----------|----------|---------|
+| Modularidad (packages) | `app.pipeline`, `app.sources`, `app.db` aislados | Cambio en warehouse no afecta sources |
+| Tipos explícitos (Pydantic) | IDE autocompletion, errores detectados temprano | `class SourceAsset(dataclass)` bien tipado |
+| Funciones puras | Sin estado global, determinísticas | `normalize_code()` siempre igual output |
+| Documentación inline | Decisiones explicadas en docstrings/commits | README en español e inglés |
+
+**Commit evidencia**: `50c4720` - *"Expanded the README.md file with more detailed information"*
+
+### 4.5 ACCESIBILIDAD
+
+| Decisión | Mecanismo | Acceso |
+|----------|-----------|--------|
+| FastAPI auto-docs | Swagger UI en `/docs` | Descubrimiento de API sin leer código |
+| CORS abierto | Integración desde navegador | Tableau WDC, herramientas externas |
+| Interfaz SQL estándar | DuckDB soporta SQL puro | Herramientas BI genéricas (DBeaver, etc.) |
+| Streamlit dashboard | UI visual sin codificar | Análisis exploratorio sin SQL |
+| Docker Compose | Setup en 1 comando | `docker compose up --build` |
+
+**Commit evidencia**: `d1c3677` - *"Add Tableau Web Data Connector and update API documentation"* - Explícito en accesibilidad
+
+---
+
+## 5. ANÁLISIS DEL HISTORIAL DE COMMITS
+
+### Evolución de la Arquitectura
+
+| Período | Commit | Foco | Implicación |
+|---------|--------|------|-------------|
+| **Inicial** | `310180f` - Initial commit | Estructura base | Planificación previa |
+| **Core** | `de60adb` - Optimizations | Caching, query optimization | Escalabilidad temprana |
+| **Estabilización** | `c28f2b0` - Fix scheduler dependencies | Confiabilidad | Lecciones aprendidas |
+| **Integraciones** | `d1c3677` - Tableau WDC | Ecosistema | Accesibilidad extendida |
+
+**Patrón**: Arquitectura estable → Optimizaciones → Expansión de integraciones
+
+---
+
+## 6. TRADE-OFFS Y DECISIONES CONSCIENTES
+
+### 6.1 DuckDB vs Postgres
+
+| Aspecto | DuckDB | Postgres |
+|--------|--------|----------|
+| **Complejidad** | Cero (embebido) | Alta (servidor) |
+| **Escalabilidad horizontal** | Limitada | Excelente |
+| **Costo** | Ninguno | Infraestructura |
+| **Para PRIG** | ✅ Elegido | ✗ Overkill |
+
+**Decisión consciente**: Se prioriza operacionalidad simple sobre escala masiva.
+
+### 6.2 CORS Abierto
+
+```python
+allow_origins=["*"],  # ⚠️ Seguridad reducida
+```
+
+**Impacto**: Accesibilidad vs. Seguridad. Apropiado para datos públicos (educación superior), pero en producción debería restringirse:
+
+```python
+allow_origins=["https://dashboard.domain.com", "https://tableau.domain.com"]
+```
+
+### 6.3 Normalización Tolerante vs. Validación Estricta
+
+**Decisión**: Aceptar data sucia, normalizar en pipeline, no rechazar.
+
+```python
+# Acepta variaciones en nombres de columnas
+institution_code_column = select_first_existing(columns, IES_CODE_CANDIDATES)
+```
+
+**Trade-off**:
+- ✅ **Robustez**: Pipeline no falla por formato ligero distinto
+- ⚠️ **Calidad**: Posibles datos malformados pasan desapercibidos
+
+**Mitigación**: `field_metadata` table preserva originales para auditoria.
+
+---
+
+## 7. RECOMENDACIONES PARA EVOLUCIÓN
+
+### Corto Plazo (Mantenibilidad Inmediata)
+1. **Restringir CORS** en producción: `allow_origins=["domain.com"]`
+2. **Agregar logging** en warehouse connections para monitoreo
+3. **Tests de integración** para sync pipeline (actualmente implícitos)
+
+### Mediano Plazo (Escalabilidad)
+1. **Migración a DuckDB con replicación** si datos crecen >10GB
+2. **Cache layer** (Redis) para queries frecuentes
+3. **Metrics** de rendimiento (tiempo de sync, latencia de queries)
+
+### Largo Plazo (Sostenibilidad)
+1. **CI/CD** automatizado con validación de schema
+2. **Data contracts** formales con fuentes SNIES/HECAA
+3. **Versionado de warehouse** para rollback de transformaciones
+
+---
+
+## 8. CONCLUSIÓN
+
+PRIG SNIES implementa una **arquitectura pragmática y bien pensada** que prioriza:
+
+1. **Flexibilidad sobre rigidez**: Schema-agnostic tolera evolución de fuentes
+2. **Operacionalidad sobre complejidad**: DuckDB embebido vs. infraestructura compleja
+3. **Preservación sobre descarte**: Metadatos conservados para gobernanza futura
+4. **Accesibilidad sobre exclusividad**: CORS, Swagger, Tableau WDC abiertos
+
+Las decisiones técnicas son **inversamente proporcionales al acoplamiento**, permitiendo que el sistema evolucione sin recodificación masiva. La separación de capas, uso de funciones puras, y configuración externalizada hacen del sistema **altamente mantenible** para equipos de pequeño y mediano tamaño.
+
+El historial de commits muestra una **maduración gradual** desde MVP a plataforma estable, con énfasis creciente en integraciones y accesibilidad—indicador de salud arquitectónica.

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+from prefect import flow
 
 from app.core.settings import get_settings
 from app.db.warehouse import Warehouse
@@ -292,7 +293,7 @@ def normalize_name(value: object) -> str | None:
     return text if text else None
 
 
-def run_sync() -> None:
+def _run_sync_impl() -> None:
     settings = get_settings()
     warehouse = Warehouse(settings)
     warehouse.initialize()
@@ -380,6 +381,11 @@ def run_sync() -> None:
             message=str(exc),
         )
         raise
+
+
+@flow(name="snies-sync", log_prints=True)
+def run_sync() -> None:
+    _run_sync_impl()
 
 
 if __name__ == "__main__":
