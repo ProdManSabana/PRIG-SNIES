@@ -579,42 +579,6 @@ docker compose up --build
 - The current normalization is intentionally schema-tolerant because SNIES file layouts can differ by profile and year.
 - If the live portals change their HTML structure or download mechanics, the source adapters in `backend/app/sources/` are the place to update.
 
-# Used tool: mcp__gitkraken__git_log_or_diff
-
-Searched for files matching `backend/**/*.py`
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES)
-
-
-
-Ran terminal command: cd c:/Users/ae.wills22/source/repos/PRIG-SNIES && git log --oneline -30
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/README.md)
-
-Ran terminal command: cd c:/Users/ae.wills22/source/repos/PRIG-SNIES ; git log --oneline -30
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/docs/architecture.md)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/main.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/pipeline/sync.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/db/warehouse.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/api/app.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/core/settings.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/api/routes.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/backend/app/sources/snies.py)
-
-Read [](file:///c%3A/Users/ae.wills22/source/repos/PRIG-SNIES/docker-compose.yaml)
-
-Aquí te presento un análisis comprensivo de las decisiones técnicas y arquitectónicas del proyecto PRIG SNIES basado en el historial de commits y la estructura del código:
-
----
-
 # ANÁLISIS DE DECISIONES TÉCNICAS Y ARQUITECTÓNICAS - PRIG SNIES
 
 ## 1. RESUMEN EJECUTIVO
@@ -943,3 +907,101 @@ PRIG SNIES implementa una **arquitectura pragmática y bien pensada** que priori
 Las decisiones técnicas son **inversamente proporcionales al acoplamiento**, permitiendo que el sistema evolucione sin recodificación masiva. La separación de capas, uso de funciones puras, y configuración externalizada hacen del sistema **altamente mantenible** para equipos de pequeño y mediano tamaño.
 
 El historial de commits muestra una **maduración gradual** desde MVP a plataforma estable, con énfasis creciente en integraciones y accesibilidad—indicador de salud arquitectónica.
+
+# TRANSFERENCIA DE CONOCIMIENTO - Cómo escalar PRIG-SNIES a todo el país
+
+## 1. Punto de partida: qué hace hoy el sistema
+
+Aunque los archivos que el SNIES publica **ya contienen datos de todo el país**, la plataforma hoy actúa como un *filtro*: descarga los archivos nacionales y se queda sólo con Bogotá, D.C. (código DANE `11`) y los años 2022, 2023, 2024. Este comportamiento está centralizado en [backend/app/core/settings.py:19-21](backend/app/core/settings.py#L19-L21):
+
+```python
+target_department: str = "Bogotá, D.C."
+target_department_code: str = "11"
+target_years: list[int] = [2022, 2023, 2024]
+```
+
+**La buena noticia:** la materia prima ya es nacional. Escalar no significa "conseguir más datos", significa **dejar de filtrar** y preparar al sistema para aguantar un volumen ~32 veces mayor.
+
+---
+
+## 2. Las cuatro dimensiones del escalamiento
+
+Piensa en escalar como pasar de una panadería de barrio a una cadena nacional. Necesitas cambios en cuatro frentes:
+
+### A. Volumen de datos (el "almacén")
+
+| Elemento | Hoy (Bogotá) | País completo (estimado) |
+|---|---|---|
+| Departamentos | 1 | 33 |
+| Hechos (`fact_observations`) | ~383.191 | ~12–15 millones |
+| Filas de dimensiones | ~8,2 millones | ~260 millones |
+| Instituciones | 390 | ~3.800 (HECAA total) |
+| Tamaño warehouse en disco | cientos de MB | decenas de GB |
+
+**Implicación:** DuckDB (el motor analítico embebido elegido en [docs/architecture.md](docs/architecture.md)) soporta cómodamente este volumen, pero deja de caber en un solo contenedor pequeño. Hay que darle más RAM, más disco SSD, y mover el archivo `snies.duckdb` a un volumen dedicado (por ejemplo, un disco en red o un bucket montado tipo S3/Azure Blob).
+
+### B. Procesamiento (la "cocina")
+
+Hoy el `scheduler` hace una ingesta secuencial cada 24 horas para 1 departamento × 3 años. Para todo el país, la misma lógica escrita en [backend/app/pipeline/sync.py](backend/app/pipeline/sync.py) se volvería cuello de botella.
+
+**Cambios necesarios, en orden de esfuerzo:**
+
+1. **Quitar el filtro por departamento** en la configuración: permitir `TARGET_DEPARTMENT=*` (todos) o una lista. Esto es un cambio pequeño de código.
+2. **Paralelizar la ingesta por (departamento, año)**. El proyecto ya migró a **Prefect** como orquestador ([backend/app/pipeline/sync.py:6](backend/app/pipeline/sync.py#L6)), que permite lanzar tareas concurrentes. En lugar de un bucle que procesa un archivo a la vez, Prefect puede abrir, por ejemplo, 8 "cocineros" simultáneos.
+3. **Ampliar la ventana histórica**. Bogotá con 3 años genera 383K hechos; el SNIES tiene series desde ~2007. País + historia completa multiplica el volumen por ~10 adicional.
+
+### C. Infraestructura (la "planta física")
+
+Hoy todo vive en **Docker Compose** corriendo en una sola máquina. Eso funciona bien para un piloto departamental. Para país, las opciones en orden de madurez son:
+
+1. **Servidor único más potente (vertical scaling).** Una VM con 32–64 GB RAM y disco NVMe corriendo el mismo `docker compose` aguanta perfectamente el país con DuckDB. Es el salto más barato y probablemente suficiente para MEN/SNIES.
+2. **Kubernetes (horizontal scaling).** Cuando varios equipos necesiten consultar al tiempo, se separan los servicios:
+   - El **scheduler** se convierte en un **job de Prefect** que corre en un worker dedicado.
+   - La **API** se replica en varias instancias detrás de un balanceador (`docker compose up --scale api=3` ya insinúa este camino).
+   - El **warehouse** pasa a un almacenamiento compartido o se migra a un motor distribuido (ver siguiente punto).
+3. **Data warehouse en la nube.** Si el consumo supera lo que DuckDB embebido puede ofrecer, se migra a **BigQuery, Snowflake, Redshift o ClickHouse**. El modelo de tablas actual (`fact_observations`, `observation_dimensions`, `field_metadata` — ver [docs/warehouse-er-model.md](docs/warehouse-er-model.md)) es portable: el mismo SQL funciona con cambios mínimos gracias al diseño *schema-agnostic*.
+
+### D. Consumo (la "vitrina")
+
+El dashboard de Streamlit y la API FastAPI hoy responden rápido porque el universo es pequeño. A escala país:
+
+- **La API necesita caché.** Agregar Redis entre [backend/app/api/routes.py](backend/app/api/routes.py) y el warehouse para guardar respuestas repetidas (por ejemplo, "total nacional 2023"). Una consulta cacheada responde en 10 ms; una sin cachear sobre 12 millones de filas puede tardar varios segundos.
+- **El dashboard necesita filtros jerárquicos.** Hoy el sidebar muestra filtros planos. Con 33 departamentos y ~1.100 municipios, hay que agrupar: País → Departamento → Municipio → Institución. De lo contrario, el selector se vuelve inusable.
+- **La API necesita paginación y límites.** Endpoints como `/api/v1/trend` sin `LIMIT` pueden devolver payloads enormes.
+
+---
+
+## 3. Plan de evolución sugerido (por fases)
+
+Pensando en **costo vs. valor entregado**, no conviene saltar directo al cloud. Una ruta pragmática:
+
+**Fase 1 — Multi-departamento (1–2 semanas).** Parametrizar `TARGET_DEPARTMENT` como lista en [settings.py:19](backend/app/core/settings.py#L19). Probar con 3 departamentos (Bogotá, Antioquia, Valle). Mismo docker compose, misma máquina. Esto valida que el modelo *tall* del warehouse aguanta sin rediseño.
+
+**Fase 2 — País completo en un servidor (2–4 semanas).** Quitar el filtro, paralelizar con Prefect, subir el servicio a una VM con 32 GB RAM. Agregar Redis para caché. El dashboard sigue siendo Streamlit pero con filtros jerárquicos.
+
+**Fase 3 — Alta disponibilidad (1–3 meses).** Mover a Kubernetes. Separar scheduler (Prefect server + workers) de la API (réplicas con autoscaling). Warehouse compartido en almacenamiento de red.
+
+**Fase 4 — Plataforma nacional (6+ meses).** Si entran ministerios, universidades y periodistas como usuarios concurrentes, migrar DuckDB → BigQuery/ClickHouse. Agregar autenticación (hoy el CORS está abierto en [backend/app/api/app.py](backend/app/api/app.py) — ver el trade-off ya documentado en el README, líneas 856-866). Establecer *data contracts* con el MEN para que los cambios de esquema del SNIES no rompan la ingesta.
+
+---
+
+## 4. Lo que ya está preparado para escalar (y lo que no)
+
+**Ventajas heredadas del diseño actual:**
+
+- El modelo **schema-agnostic** (README.md, líneas 634-656) ya tolera que cada departamento tenga variaciones en columnas. No hay que recodificar nada por departamento.
+- Los **adaptadores de fuentes** ([backend/app/sources/](backend/app/sources/)) ya descargan archivos nacionales completos. El filtro de Bogotá ocurre *después* de la descarga, así que la ingesta no cambia.
+- **Prefect** ya está integrado, lo que habilita paralelización sin reescribir el pipeline.
+- La **separación en capas** (landing → raw → processed → warehouse) permite reprocesar un departamento sin tocar los otros.
+
+**Deudas que bloquean el escalamiento:**
+
+- **CORS abierto** (`allow_origins=["*"]`) es aceptable para datos públicos de un piloto, pero inaceptable para una plataforma nacional con autenticación.
+- **Sin tests de integración** sobre el pipeline (mencionado como deuda en el README líneas 889-891) — a escala país, una regresión silenciosa puede corromper millones de filas.
+- **Sin métricas ni alertas.** Con un solo departamento, si algo falla, se nota. Con 33, hace falta observabilidad (Prometheus/Grafana) para saber cuál departamento no cargó este mes.
+
+---
+
+## Resumen en una frase
+
+Escalar PRIG-SNIES a todo el país **no requiere rediseñar la arquitectura**, porque las decisiones clave (schema-agnostic, capas separadas, Prefect, DuckDB) ya estaban pensadas para crecer. Requiere **quitar el filtro geográfico, paralelizar la ingesta, dimensionar el servidor, y agregar caché y filtros jerárquicos en el consumo** — en ese orden.
