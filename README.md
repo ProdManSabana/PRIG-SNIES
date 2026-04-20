@@ -17,6 +17,7 @@ Plataforma de datos containerizada para análisis de educación superior en Bogo
 - `dashboard/`: dashboard Streamlit
 - `data/`: capas persistidas de landing, raw, processed y warehouse
 - `docs/architecture.md`: decisiones de arquitectura
+- `docs/warehouse-er-model.md`: referencia del modelo de datos interno
 
 ## Inicio rápido
 
@@ -552,6 +553,7 @@ Dockerized data platform for Bogotá, D.C. higher-education analytics across SNI
 - `dashboard/`: Streamlit dashboard
 - `data/`: persisted landing, raw, processed, and warehouse layers
 - `docs/architecture.md`: architecture decisions
+- `docs/warehouse-er-model.md`: actual DuckDB schema (6 tables, 383,191 facts, 8.2M dimension rows, 390 institutions, 23 distinct dimension names) cross-referenced with the code that writes it. 
 
 ## Quick start
 

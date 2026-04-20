@@ -1,9 +1,19 @@
 from contextlib import contextmanager
+from time import sleep
 
 import duckdb
 import pandas as pd
 
 from app.core.settings import Settings
+
+
+DUCKDB_LOCK_RETRY_ATTEMPTS = 10
+DUCKDB_LOCK_RETRY_DELAY_SECONDS = 1
+
+
+def should_retry_duckdb_lock(exc: duckdb.IOException) -> bool:
+    message = str(exc)
+    return "Could not set lock on file" in message and "Conflicting lock is held" in message
 
 
 class Warehouse:
@@ -12,7 +22,21 @@ class Warehouse:
 
     @contextmanager
     def connect(self, read_only: bool = False):
-        connection = duckdb.connect(str(self.settings.warehouse_path), read_only=read_only)
+        connection = None
+        last_error = None
+        for attempt in range(DUCKDB_LOCK_RETRY_ATTEMPTS):
+            try:
+                connection = duckdb.connect(str(self.settings.warehouse_path), read_only=read_only)
+                break
+            except duckdb.IOException as exc:
+                last_error = exc
+                if not should_retry_duckdb_lock(exc) or attempt == DUCKDB_LOCK_RETRY_ATTEMPTS - 1:
+                    raise
+                sleep(DUCKDB_LOCK_RETRY_DELAY_SECONDS)
+
+        if connection is None and last_error is not None:
+            raise last_error
+
         try:
             yield connection
         finally:
